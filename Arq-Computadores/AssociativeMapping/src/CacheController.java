@@ -186,7 +186,20 @@ public class CacheController {
           política FIFO. A variável nextLine é um array de índices, um por conjunto, que a linha de um
           conjunto que será substituida.
         */
-        setLine = set|
+        
+        int setTagDirectory = tag % numberOfSets;
+        setLine = set|nextLine[setTagDirectory];
+        tagDirectory.setTag(setLine, tag);
+        
+        int adressBase = tag<<offsetSize+setSize;
+        for(int i = 0; i < mainMemory.getBlockSize(); i++){
+            cache.setCache(setLine, getOffset(adressBase+i), mainMemory.getData(adressBase+i));
+        }
+
+        nextLine[setTagDirectory]++;
+        nextLine[setTagDirectory] %= k_way;
+
+
         System.out.println(String.format("Mapping address %d (and neighbors)...", address));
         System.out.println(String.format("New cache line %d: %s", setLine, Arrays.toString(cache.getLine(setLine))));
         return cache.getLine(setLine)[getOffset(address)];
