@@ -1,0 +1,155 @@
+/*
+  Nome: Aluno 1;
+  Nome: Aluno 2;
+*/
+
+
+import java.lang.Math;
+import java.util.Arrays;
+
+public class CacheController {
+    int tagSize;
+    int numberOfLines;
+    int offsetSize;
+    int addressMask;
+    int tagMask;
+    int offsetMask;
+    int nextLine = 0;
+    MainMemory mainMemory;
+    Cache cache;
+    TagDirectory tagDirectory;
+
+
+    public CacheController(MainMemory mainMemory, Cache cache, TagDirectory tagDirectory) {
+        this.mainMemory = mainMemory;
+        this.cache = cache;
+        this.tagDirectory = tagDirectory;
+
+        /*
+            Nessa parte, você inicializa o valor dos tamanhos da tag, linha e offset.
+            Para tanto, insira o valor apropriado.
+
+             Obs: Utilize os métodos mainMemory.getSize(), cache.getSize() e mainMemory.getBlockSize() para
+                  obter os tamanhos da memória principal, cache e do offset respectivamente
+        */
+
+        this.offsetSize = calcLog2(mainMemory.getBlockSize());
+        this.tagSize = calcLog2(mainMemory.getSize() / mainMemory.getBlockSize());
+        this.numberOfLines = calcLog2(cache.getSize() / mainMemory.getBlockSize());
+
+
+        /*
+            Nessa parte, você irá chamar os métodos abaixo para inicializar as máscaras de bits apropriadas.
+            Essas máscaras serão úteis para obter os bits referentes às tags, linhas,  offsets e endereço
+            propriamente dito.
+        */
+
+        this.setTagMask();
+        this.setOffsetMask();
+        this.setAddressMask();
+
+    }
+
+    public int calcLog2(int value) {
+        /*
+            Calcula o logarítmo na base 2 de valor e retorna o valor inteiro apropriado
+        */
+        return (int) (Math.log(value) / Math.log(2));
+    }
+
+    public int getTag(int address) {
+        /*
+           Obtém o valor do inteiro obtido dos bits da tag
+        */
+        address = address & tagMask;
+
+        return address >> this.offsetSize;
+    }
+
+    public int getOffset(int address) {
+        /*
+           Obtém o valor do inteiro obtido dos bits de offset
+        */
+        address = address & offsetMask;
+
+        return address;
+    }
+
+    public void setTagMask() {
+        /*
+           Calcula a máscara de bits da tag.
+           E.g. tamanho do endereço 6 bits, tamanho da tag 2 bits:
+           máscara de tag: 110000
+        */
+        int mask = 0;
+        for(int i =0 ; i < this.tagSize; i++){
+            mask <<= 1;
+            mask++;
+        }
+
+        this.tagMask = mask << this.offsetSize;
+    }
+
+    public void setOffsetMask() {
+        /*
+           Calcula a máscara de bits do offset.
+           E.g. tamanho do endereço 6 bits, tamanho do offset 2 bits:
+           máscara de tag: 000011
+        */
+        int mask = 0;
+        for(int i =0 ; i < this.offsetSize; i++){
+            mask <<= 1;
+            mask++;
+        }
+
+        this.offsetMask = mask;
+    }
+
+    public void setAddressMask() {
+        /*
+           Calcula a máscara de bits de endereço.
+           E.g. Estamos utilizando int (32 bits), tamanho do endereço 6 bits:
+           máscara de endereço: 000000000000000000000000111111
+        */
+        int mask = 0;
+        for(int i =0 ; i < 6; i++){
+            mask <<= 1;
+            mask++;
+        }
+
+        this.addressMask = mask;
+    }
+
+    public String getData(int address) {
+        int tag = getTag(address);
+        int line = 0;
+        for (line = 0; line < this.numberOfLines; line++) {
+            if (this.tagDirectory.getTag(line) == tag) {
+                System.out.println("Tag Hit!");
+                System.out.println(String.format("Cache line %d: %s", line, Arrays.toString(cache.getLine(line))));
+                return cache.getLine(line)[getOffset(address)];
+            }
+        }
+        System.out.println("Tag Miss!");
+        /*
+          Nessa parte, como a tag não foi encontrada no dirertório de tags, você deve
+          copiar os valores do bloco apropriado da memória principal para a linha correta da
+          memória cache (MAPEAMENTO ASSOCIATIVO!!!) e atualizar o diretório de tags.
+          Lembre-se de utilizar a variável nextLine para controlar a substituição com
+          política FIFO
+        */
+
+        tagDirectory.setTag(nextLine, getTag(address));
+        int adressBase = tag<<offsetSize;
+        for(int i = 0; i < mainMemory.getBlockSize(); i++){
+            cache.setCache(nextLine, getOffset(adressBase+i), mainMemory.getData(adressBase+i));
+        }
+        nextLine = nextLine % numberOfLines;
+        line = nextLine;
+        nextLine++;
+
+        System.out.println(String.format("Mapping address %d (and neighbors)...", address));
+        System.out.println(String.format("New cache line %d: %s", line, Arrays.toString(cache.getLine(line))));
+        return cache.getLine(line)[getOffset(address)];
+    }
+}
